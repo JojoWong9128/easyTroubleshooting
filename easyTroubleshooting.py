@@ -176,10 +176,12 @@ def _get_cycle_id(fileNames, outputFolder):
 
 
 def _statement():
-        print('-------------------------------------------------------------------------------------------------------')
+        #print('-------------------------------------------------------------------------------------------------------')
+        print('')
         _version()
         _help_info()
-        print('-------------------------------------------------------------------------------------------------------')
+        print('')
+        #print('-------------------------------------------------------------------------------------------------------')
 
 
 def _version():
@@ -214,72 +216,79 @@ def main(argv):
         _statement()
 
         sys.exit(2)
-    for opt, arg in opts:
-        if opt == "-h" or opt == "--help":
-            _statement()
-            sys.exit()
-        elif opt in("-i","--input dir"):
-            imgDir = arg
-        elif opt == "-e":
-            enhancemenFlag = 'true'
-        elif opt == "-s":
-            basicStatisticsFlag = 'true'
-        elif opt == "-d":
-            defectDetFlag = 'true'
-        elif opt in("-o","--output dir"):
-            outputDir = arg
 
-    print('-------------------------------------------   FUNCTIONS   -------------------------------------------------')
-    _version()
-    print('-------------------------------------------   PARAMETERS  -------------------------------------------------')
-    print('Image Directory           :    ', imgDir)
-    print('fov and cycle statistics  :    ', basicStatisticsFlag)
-    print('image rewrite             :    ', enhancemenFlag)
-    print('defect detection          :    ', defectDetFlag)
+    if opts == []:
+        _statement()
+    else:
 
-    #imgDir = r"F:\V100010724\L01\Diagnosis\FailureImages"
-    imgs = _get_file_list(imgDir, ".tif")
-    imgNum = len(imgs)
+        for opt, arg in opts:
+            if opt == "-h" or opt == "--help":
+                _statement()
+                sys.exit()
+            elif opt in("-i","--input dir"):
+                imgDir = arg
+            elif opt == "-e":
+                enhancemenFlag = 'true'
+            elif opt == "-s":
+                basicStatisticsFlag = 'true'
+            elif opt == "-d":
+                defectDetFlag = 'true'
+            elif opt in("-o","--output dir"):
+                outputDir = arg
+            else:
+                _statement()
 
-    if outputDir == '':
-        outputDir = imgDir
+        print('#######################################   FUNCTIONS   #################################################')
+        _version()
+        print('#######################################   PARAMETERS  #################################################')
+        print('Image Directory           :    ', imgDir)
+        print('fov and cycle statistics  :    ', basicStatisticsFlag)
+        print('image rewrite             :    ', enhancemenFlag)
+        print('defect detection          :    ', defectDetFlag)
 
-    print('Output Directory          :    ', outputDir)
+        #imgDir = r"F:\V100010724\L01\Diagnosis\FailureImages"
+        imgs = _get_file_list(imgDir, ".tif")
+        imgNum = len(imgs)
 
-    if basicStatisticsFlag == 'true':
-        print("start doing fov and cycle statistics.")
-        statisticsFileName = 'Fov Cycle Statistics'
-        # do fov and cycle statistics
-        statisticsFolder = outputDir + "/" + "statistics"
-        _create_folder(statisticsFolder)
-        # get fov ID
-        fovId = _get_fov_id(imgs, statisticsFolder)
-        #_data_to_excel(fovId,statisticsFileName,'fovID',outputDir)
-        # get cycle ID
-        cycleId = _get_cycle_id(imgs, statisticsFolder)
-        try:
-            _data_to_excel(cycleId,statisticsFileName,'cycleID',outputDir)
-        except Exception as e:
-            print(e)
+        if outputDir == '':
+            outputDir = imgDir
 
-    if enhancemenFlag == 'true':
-        print("Start to applying enhancement into images")
-        # do image enhancement
-        folderName = "EnhancedImage"
-        outputPath = outputDir+"/"+folderName
-        _create_folder(outputPath)
+        print('Output Directory          :    ', outputDir)
 
-        for i in tqdm(range(imgNum)):
+        if basicStatisticsFlag == 'true':
+            print("start doing fov and cycle statistics.")
+            statisticsFileName = 'Fov Cycle Statistics'
+            # do fov and cycle statistics
+            statisticsFolder = outputDir + "/" + "statistics"
+            _create_folder(statisticsFolder)
+            # get fov ID
+            fovId = _get_fov_id(imgs, statisticsFolder)
+            #_data_to_excel(fovId,statisticsFileName,'fovID',outputDir)
+            # get cycle ID
+            cycleId = _get_cycle_id(imgs, statisticsFolder)
+            try:
+                _data_to_excel(cycleId,statisticsFileName,'cycleID',outputDir)
+            except Exception as e:
+                print(e)
 
-            img = tiff.imread(imgDir+"/"+imgs[i])
-            maxValue = img.max()
-            minValue = img.min()
-            norm = np.uint8(np.round((img-minValue)/(maxValue - minValue)*255))
+        if enhancemenFlag == 'true':
+            print("Start to applying enhancement into images")
+            # do image enhancement
+            folderName = "EnhancedImage"
+            outputPath = outputDir+"/"+folderName
+            _create_folder(outputPath)
 
-            normHist = cv2.equalizeHist(norm)
-            imageName = os.path.splitext(imgs[i])[0]
-            outputFileName = outputPath + "/" + imageName + ".png"
-            cv2.imwrite(outputFileName, normHist)
+            for i in tqdm(range(imgNum)):
+
+                img = tiff.imread(imgDir+"/"+imgs[i])
+                maxValue = img.max()
+                minValue = img.min()
+                norm = np.uint8(np.round((img-minValue)/(maxValue - minValue)*255))
+
+                normHist = cv2.equalizeHist(norm)
+                imageName = os.path.splitext(imgs[i])[0]
+                outputFileName = outputPath + "/" + imageName + ".png"
+                cv2.imwrite(outputFileName, normHist)
 
 
 
