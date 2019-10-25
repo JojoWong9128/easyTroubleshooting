@@ -1,3 +1,5 @@
+#coding=utf-8
+
 import os
 import re
 import shutil
@@ -9,10 +11,11 @@ import sys, getopt,time
 import threading
 import xlsxwriter
 
-
+from PIL import Image
 from tqdm import tqdm
 from scipy import sparse
 from time import ctime,sleep
+
 
 
 def _data_to_excel(arrayData, file_name, sheet = 'sheet1', output_dir = None):
@@ -31,7 +34,7 @@ def _data_to_excel(arrayData, file_name, sheet = 'sheet1', output_dir = None):
     sheet_name = sheet
     worksheet = workbook.add_worksheet(sheet_name)
 
-    # save data to xlsx file
+    # save data to Excel
     col = np.size(arrayData, 1)
     row = int(np.size(arrayData)/col)
     title_format = workbook.add_format({'bold':True,'align':'center','font':'Times New Roman'})
@@ -43,7 +46,7 @@ def _data_to_excel(arrayData, file_name, sheet = 'sheet1', output_dir = None):
             worksheet.write_number(rowId+1,colId,arrayData[rowId,colId],data_format)
 
     workbook.close()
-    print("Data hs been saved in " + output_dir + " successfully.")
+    print("Data has been saved in " + output_dir + " successfully.")
 
 
 def _get_file_list(fileDir, fileFormat):
@@ -188,8 +191,8 @@ def _version():
         print('This is an easy-troubleshooting tool of basecall on python 3. Any question, please do not hesitate to')
         print('contact with Yujiao Wang<wangyujiao@genomics.cn>')
         print('')
-        print('  VERSION  : 0.1.2')
-        print('Last Update: 2019/10/12')
+        print('  VERSION  : 0.1.3')
+        print('  UPDATE   : 2019/10/25')
         print('')
 
 
@@ -238,13 +241,14 @@ def main(argv):
             else:
                 _statement()
 
-        print('#######################################   FUNCTIONS   #################################################')
+        print('')
         _version()
-        print('#######################################   PARAMETERS  #################################################')
+        #print('#######################################   PARAMETERS  #################################################')
         print('Image Directory           :    ', imgDir)
         print('fov and cycle statistics  :    ', basicStatisticsFlag)
         print('image rewrite             :    ', enhancemenFlag)
         print('defect detection          :    ', defectDetFlag)
+        print('')
 
         #imgDir = r"F:\V100010724\L01\Diagnosis\FailureImages"
         imgs = _get_file_list(imgDir, ".tif")
@@ -272,23 +276,34 @@ def main(argv):
                 print(e)
 
         if enhancemenFlag == 'true':
-            print("Start to applying enhancement into images")
             # do image enhancement
             folderName = "EnhancedImage"
-            outputPath = outputDir+"/"+folderName
+            outputPath = outputDir+"\\"+folderName
             _create_folder(outputPath)
 
-            for i in tqdm(range(imgNum)):
+            with tqdm(total=imgNum,ascii=True) as pbar:
+                for i in range(imgNum):
 
-                img = tiff.imread(imgDir+"/"+imgs[i])
-                maxValue = img.max()
-                minValue = img.min()
-                norm = np.uint8(np.round((img-minValue)/(maxValue - minValue)*255))
+                    img = tiff.imread(imgDir+"\\"+imgs[i])
 
-                normHist = cv2.equalizeHist(norm)
-                imageName = os.path.splitext(imgs[i])[0]
-                outputFileName = outputPath + "/" + imageName + ".png"
-                cv2.imwrite(outputFileName, normHist)
+                    #pbar.set_description("Applying enhancement into images:{}".format(i+1))
+                    pbar.set_description("Applying enhancement into images")
+                    pbar.update()
+
+                    maxValue = img.max()
+                    minValue = img.min()
+                    norm = np.uint8(np.round((img-minValue)/(maxValue - minValue)*255))
+
+                    img_pil = Image.open(imgDir+"\\"+imgs[i])
+
+                    normHist = cv2.equalizeHist(norm)
+                    imageName = os.path.splitext(imgs[i])[0]
+                    outputFileName = outputPath + "\\" + imageName + ".png"
+                    #cv2.imwrite(outputFileName, normHist)
+                    cv2.imencode('.png',normHist)[1].tofile(outputFileName)
+
+            pbar.close()
+
 
 
 
