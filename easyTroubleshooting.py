@@ -18,6 +18,50 @@ from time import ctime,sleep
 
 
 
+#------------ version description -----------------------#
+
+prog_version = '0.1.3'
+prog_date = '2019-10-25'
+
+#--------------       USAGE       -----------------------#
+USAGE = '''
+    This is an easy-troubleshooting tool of basecall on python 3. Any question, please do not hesitate to contact with Yujiao Wang<wangyujiao@genomics.cn>\r\n
+
+        VERSION : %s by Yujiao Wang %s
+
+        USAGE   : %s <Diagnosis Image Directory> [options]
+''' % (prog_version, prog_date, os.path.basename(sys.argv[0]))
+
+
+# multi-thread
+exitFlag = 0
+threadLock = threading.Lock()
+threads = []
+
+
+class myThread(threading.Thread):
+    def __init__(self,threadID,name,counter):
+        threading.Thread.__init__(self)
+        self.threadID = threadID
+        self.name = name
+        self.counter = counter
+
+    def run(self):
+        print("开始线程："+self.name)
+        threadLock.acquire()
+        print_time(self.name,self.counter,5)
+        print("退出线程："+self.name)
+        threadLock.release()
+
+
+def print_time(threadName,delay,counter):
+    while counter:
+        if exitFlag:
+            threadName.exit()
+        time.sleep(delay)
+        print("%s:%s"%(threadName,time.ctime(time.time())))
+        counter -= 1
+
 def _data_to_excel(arrayData, file_name, sheet = 'sheet1', output_dir = None):
 
     # file preparation
@@ -177,139 +221,90 @@ def _get_cycle_id(fileNames, outputFolder):
 
     return cycleStatistics
 
+def main():
+    import argparse
 
-def _statement():
-        #print('-------------------------------------------------------------------------------------------------------')
-        print('')
-        _version()
-        _help_info()
-        print('')
-        #print('-------------------------------------------------------------------------------------------------------')
+    parser = argparse.ArgumentParser(usage=USAGE)
+    parser.add_argument('-v',"--version",action="version",version=prog_version)
+    parser.add_argument('-e',"--enhancement",action="store_true",dest="enhancemenFlag",default="false",help="apply enhancement into images. [%(default)s]")
+    parser.add_argument('-s',"--statistics",action="store_true",dest="basicStatisticsFlag",default="false",help="do basic FOV and cycle statistics. [%(default)s]")
+    parser.add_argument('-d',"--defects detection",action="store_true",dest="defectDetFlag",default="false",help="detect image defects and classify them. [%(default)s]")
+    parser.add_argument('-o',"--output folder",action="store",dest="outputDir",default=os.getcwd(),help="save outputs into given folder. [%(default)s]")
+    para,args = parser.parse_known_args()
+    if len(args)<2:
+        parser.print_help()
+        print('\nError: Input parameter number is not correct,please check.')
+        sys.exit(1)
 
-
-def _version():
-        print('This is an easy-troubleshooting tool of basecall on python 3. Any question, please do not hesitate to')
-        print('contact with Yujiao Wang<wangyujiao@genomics.cn>')
-        print('')
-        print('  VERSION  : 0.1.3')
-        print('  UPDATE   : 2019/10/25')
-        print('')
-
-
-def _help_info():
-        print('  USAGE    : python easyTroubleshooting.py -i <Diagnosis Image Directory> [options]')
-        print('             [-h,--help]                   Function statement')
-        print('             [-e]                          Apply enhancement into given images')
-        print('             [-s]                          Do fov and cycle statistics')
-        print('             [-o <output dir>]             All results will be saved in the input directory by default.')
-        #print('             [-d]                          Do defect detection')
+    imgDir = args[0]
 
 
-def main(argv):
-    imgDir = ''
-    outputDir = ''
-    enhancemenFlag = 'false'
-    basicStatisticsFlag = 'false'
-    defectDetFlag = 'false'
+    #imgDir = r"F:\V100010724\L01\Diagnosis\FailureImages"
+    imgs = _get_file_list(imgDir, ".tif")
+    imgNum = len(imgs)
+
+    if para.basicStatisticsFlag :
+        print("start doing fov and cycle statistics.")
+        statisticsFileName = 'Fov Cycle Statistics'
+        # do fov and cycle statistics
+        statisticsFolder = outputDir + "/" + "statistics"
+        _create_folder(statisticsFolder)
+        # get fov ID
+        fovId = _get_fov_id(imgs, statisticsFolder)
+        #_data_to_excel(fovId,statisticsFileName,'fovID',outputDir)
+        # get cycle ID
+        cycleId = _get_cycle_id(imgs, statisticsFolder)
+        try:
+            _data_to_excel(cycleId,statisticsFileName,'cycleID',outputDir)
+        except Exception as e:
+            print(e)
+
+    if para.enhancemenFlag :
+        # do image enhancement
+        folderName = "EnhancedImage"
+        outputPath = outputDir+"\\"+folderName
+        _create_folder(outputPath)
+
+        with tqdm(total=imgNum,ascii=True) as pbar:
+            for i in range(imgNum):
+
+                img = tiff.imread(imgDir+"\\"+imgs[i])
+
+                #pbar.set_description("Applying enhancement into images:{}\n".format(i+1))
+                pbar.set_description("Applying enhancement into images")
+                pbar.update()
+
+                maxValue = img.max()
+                minValue = img.min()
+                norm = np.uint8(np.round((img-minValue)/(maxValue - minValue)*255))
+
+                img_pil = Image.open(imgDir+"\\"+imgs[i])
+
+                normHist = cv2.equalizeHist(norm)
+                imageName = os.path.splitext(imgs[i])[0]
+                outputFileName = outputPath + "\\" + imageName + ".png"
+                #cv2.imwrite(outputFileName, normHist)
+                cv2.imencode('.png',normHist)[1].tofile(outputFileName)
+
+        pbar.close()
 
 
-    try:
-        opts, args = getopt.getopt(argv,"hesdi:",["input dir="])
-    except getopt.GetoptError:
-        _statement()
+    #thread1 = myThread(1,"Thread-1",1)
+    #thread2 = myThread(2,"Thread-2",2)
 
-        sys.exit(2)
+    #thread1.start()
+    #thread2.start()
 
-    if opts == []:
-        _statement()
-    else:
+    #threads.append(thread1)
+    #threads.append(thread2)
 
-        for opt, arg in opts:
-            if opt == "-h" or opt == "--help":
-                _statement()
-                sys.exit()
-            elif opt in("-i","--input dir"):
-                imgDir = arg
-            elif opt == "-e":
-                enhancemenFlag = 'true'
-            elif opt == "-s":
-                basicStatisticsFlag = 'true'
-            elif opt == "-d":
-                defectDetFlag = 'true'
-            elif opt in("-o","--output dir"):
-                outputDir = arg
-            else:
-                _statement()
-
-        print('')
-        _version()
-        #print('#######################################   PARAMETERS  #################################################')
-        print('Image Directory           :    ', imgDir)
-        print('fov and cycle statistics  :    ', basicStatisticsFlag)
-        print('image rewrite             :    ', enhancemenFlag)
-        print('defect detection          :    ', defectDetFlag)
-        print('')
-
-        #imgDir = r"F:\V100010724\L01\Diagnosis\FailureImages"
-        imgs = _get_file_list(imgDir, ".tif")
-        imgNum = len(imgs)
-
-        if outputDir == '':
-            outputDir = imgDir
-
-        print('Output Directory          :    ', outputDir)
-
-        if basicStatisticsFlag == 'true':
-            print("start doing fov and cycle statistics.")
-            statisticsFileName = 'Fov Cycle Statistics'
-            # do fov and cycle statistics
-            statisticsFolder = outputDir + "/" + "statistics"
-            _create_folder(statisticsFolder)
-            # get fov ID
-            fovId = _get_fov_id(imgs, statisticsFolder)
-            #_data_to_excel(fovId,statisticsFileName,'fovID',outputDir)
-            # get cycle ID
-            cycleId = _get_cycle_id(imgs, statisticsFolder)
-            try:
-                _data_to_excel(cycleId,statisticsFileName,'cycleID',outputDir)
-            except Exception as e:
-                print(e)
-
-        if enhancemenFlag == 'true':
-            # do image enhancement
-            folderName = "EnhancedImage"
-            outputPath = outputDir+"\\"+folderName
-            _create_folder(outputPath)
-
-            with tqdm(total=imgNum,ascii=True) as pbar:
-                for i in range(imgNum):
-
-                    img = tiff.imread(imgDir+"\\"+imgs[i])
-
-                    #pbar.set_description("Applying enhancement into images:{}".format(i+1))
-                    pbar.set_description("Applying enhancement into images")
-                    pbar.update()
-
-                    maxValue = img.max()
-                    minValue = img.min()
-                    norm = np.uint8(np.round((img-minValue)/(maxValue - minValue)*255))
-
-                    img_pil = Image.open(imgDir+"\\"+imgs[i])
-
-                    normHist = cv2.equalizeHist(norm)
-                    imageName = os.path.splitext(imgs[i])[0]
-                    outputFileName = outputPath + "\\" + imageName + ".png"
-                    #cv2.imwrite(outputFileName, normHist)
-                    cv2.imencode('.png',normHist)[1].tofile(outputFileName)
-
-            pbar.close()
-
-
-
+    #for t in threads:
+        #t.join()
+    #print("退出主线程")
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    main()
 
 
 
