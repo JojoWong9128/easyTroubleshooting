@@ -4,6 +4,7 @@ import getopt
 import argparse
 import numpy as np
 import csv
+import xlsxwriter
 from itertools import islice
 import time
 from datetime import datetime
@@ -131,8 +132,8 @@ def get_reads_ints(readsLocsFile,readsID,dataHeader,intermediateSymbol):
     return targetReadsInts
 
 
-@timer('save_to_file')
-def save_to_file(data,fileName,fileFormat,outpuDir):
+#@timer('save_to_txt')
+def save_to_txt(data,fileName,fileFormat,outpuDir):
     fileNameWithFormat = fileName + '.'+fileFormat
     fileWithPath = outpuDir+fileNameWithFormat
     file = open(fileWithPath,'a')
@@ -145,6 +146,58 @@ def save_to_file(data,fileName,fileFormat,outpuDir):
     file.close()
     print('Data has been saved successfully.')
 
+
+def getChar(number):
+    factor,moder = divmod(number,26)
+    modChar = chr(moder+65)
+    if factor != 0:
+        modChar = getChar(factor-1)+modChar
+    return modChar
+
+def save_to_excel(Data, file_name, header = None, sheet = 'sheet1', output_dir = None):
+
+    # file preparation
+    full_name = file_name + '.xlsx'
+    if output_dir == 'None':
+        output_dir = os.getcwd()  # get the location where the command is executed
+
+    #if output_dir == 'None':
+    #    output_dir = sys.path[0]  # get python file location
+
+    file_dir = output_dir + full_name
+    create_file(file_dir)
+    workbook = xlsxwriter.Workbook(file_dir)
+    sheet_name = sheet
+    worksheet = workbook.add_worksheet(sheet_name)
+
+    # save data to Excel
+    title_format = workbook.add_format({'bold':True,'align':'center','font':'Times New Roman'})
+    data_format = workbook.add_format({'align':'center','font':'Times New Roman'})
+    count = 0
+    if header != 'None':
+        for headerI in header:
+            char = getChar(count)
+            Locs = char + '1'
+            worksheet.write_string(Locs,headerI, title_format)
+            count += 1
+
+    rowId = 0
+    for row in Data:
+        rowId += 1
+        currentRow = row.split('\t')
+        col = len(currentRow)
+        for colId in range(col):
+            worksheet.write_string(rowId,colId,currentRow[colId],data_format)
+
+    workbook.close()
+    print("Data has been saved in " + output_dir + " successfully.")
+
+
+def create_file(fileNameWithDir, recreateFlag='true'):
+
+    if recreateFlag:
+        if os.path.isfile(fileNameWithDir):
+            os.remove(fileNameWithDir)
 
 def main():
     parser = argparse.ArgumentParser(usage=USAGE)
@@ -160,7 +213,7 @@ def main():
 
     readsIdFile = args[0]
     readsLocsFile = args[1]
-    Channel = args[2]
+    Channel = args[2].upper()
 
     readsID = np.genfromtxt(readsIdFile,delimiter="\t")
     dataHeader = get_data_header(readsLocsFile)
@@ -168,9 +221,9 @@ def main():
 
     if para.saveAllDetails:
         targetReadsDetails = reads_indexing(readsID,readsLocsFile,dataHeader)
-        save_to_file(targetReadsDetails,'targetReadsDetails','tsv')
+        save_to_excel(targetReadsDetails,'targetReadsDetails',dataHeader,'sheet1',para.outputDir)
 
-    save_to_file(targetReadsLocs,'targetReadsLocs','txt',para.outputDir)
+    #save_to_txt(targetReadsLocs,'targetReadsLocs','txt',para.outputDir)
 
 
 if __name__ == '__main__':
